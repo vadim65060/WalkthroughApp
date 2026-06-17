@@ -6,8 +6,7 @@ import com.example.walkthrough.domain.models.House
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-
-class HouseRepository constructor(
+class HouseRepository(
     private val houseDao: HouseDao
 ) {
     fun getAllHouses(): Flow<List<House>> {
@@ -20,8 +19,12 @@ class HouseRepository constructor(
         return houseDao.getHouseById(houseId)?.toDomainModel()
     }
 
-    suspend fun insertHouse(address: String): Long {
-        val house = HouseEntity(address = address)
+    suspend fun insertHouse(address: String, cityCode: String = "", city: String = ""): Long {
+        val house = HouseEntity(
+            address = address,
+            cityCode = cityCode,
+            city = city
+        )
         return houseDao.insertHouse(house)
     }
 
@@ -41,6 +44,8 @@ class HouseRepository constructor(
         return House(
             id = id,
             address = address,
+            cityCode = cityCode,
+            city = city,
             createdAt = createdAt,
             lastUpdated = lastUpdated
         )
@@ -50,6 +55,8 @@ class HouseRepository constructor(
         return HouseEntity(
             id = id,
             address = address,
+            cityCode = cityCode,
+            city = city,
             createdAt = createdAt,
             lastUpdated = lastUpdated
         )

@@ -8,6 +8,8 @@ data class HouseEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val address: String,
+    val cityCode: String = "",
+    val city: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-    val lastUpdated: Long = System.currentTimeMillis() // дата последнего обхода любой квартиры
+    val lastUpdated: Long = System.currentTimeMillis()
 )

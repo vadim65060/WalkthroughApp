@@ -12,10 +12,10 @@ object RepositoryHolder {
 
     fun init(context: Context) {
         val database = Room.databaseBuilder(
-            context.applicationContext,
-            AppDatabase::class.java,
-            "walkthrough_database"
-        ).build()
+                context.applicationContext,
+                AppDatabase::class.java,
+                "walkthrough_database"
+            ).fallbackToDestructiveMigration(false).build()
 
         houseRepository = HouseRepository(database.houseDao())
         apartmentRepository = ApartmentRepository(database.apartmentDao())

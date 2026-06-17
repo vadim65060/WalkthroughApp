@@ -9,7 +9,7 @@ import com.example.walkthrough.data.local.entities.HouseEntity
 
 @Database(
     entities = [HouseEntity::class, ApartmentEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

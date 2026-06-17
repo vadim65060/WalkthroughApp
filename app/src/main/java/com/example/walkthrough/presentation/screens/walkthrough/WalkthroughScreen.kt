@@ -79,6 +79,15 @@ fun WalkthroughScreen(
     var comment by remember { mutableStateOf("") }
     var phoneError by remember { mutableStateOf(false) }
 
+    // Код города для валидации телефона
+    var areaCode by remember { mutableStateOf<String?>(null) }
+
+    // Загружаем дом для получения кода города
+    LaunchedEffect(houseId) {
+        val house = houseRepository.getHouseById(houseId)
+        areaCode = house?.cityCode
+    }
+
     // Состояние для выпадающего списка отношения
     var expanded by remember { mutableStateOf(false) }
     val attitudeOptions = listOf("позитивно", "нейтрально", "негативно")
@@ -247,7 +256,8 @@ fun WalkthroughScreen(
                         value = phone,
                         onValueChange = {
                             phone = it
-                            phoneError = phone.isNotBlank() && !PhoneValidator.isValid(phone)
+                            // ✅ Используем код города при валидации
+                            phoneError = phone.isNotBlank() && !PhoneValidator.isValid(phone, areaCode)
                         },
                         label = { Text("Телефон") },
                         placeholder = { Text("+7 123 456-78-90") },

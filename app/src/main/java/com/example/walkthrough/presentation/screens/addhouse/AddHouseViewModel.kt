@@ -7,7 +7,7 @@ class AddHouseViewModel(
     private val houseRepository: HouseRepository
 ) : ViewModel() {
 
-    suspend fun addHouse(address: String): Long {
-        return houseRepository.insertHouse(address)
+    suspend fun addHouse(address: String, cityCode: String = ""): Long {
+        return houseRepository.insertHouse(address, cityCode)
     }
 }
