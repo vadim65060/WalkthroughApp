@@ -141,7 +141,13 @@ fun AddHouseScreen(
                 Text("Ручной ввод адреса")
                 Switch(
                     checked = useManualInput,
-                    onCheckedChange = { useManualInput = it }
+                    onCheckedChange = { isManual ->
+                        useManualInput = isManual
+                        if (isManual) {
+                            val cityPart = address.substringBefore(",").trim()
+                            address = if (cityPart.isNotEmpty()) "$cityPart, " else ""
+                        }
+                    }
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
