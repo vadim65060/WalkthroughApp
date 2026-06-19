@@ -26,4 +26,9 @@ interface ApartmentDao {
 
     @Query("SELECT MAX(apartmentNumber) FROM apartments WHERE houseId = :houseId")
     suspend fun getMaxApartmentNumber(houseId: Long): Int?
+
+    data class HouseCount(val houseId: Long, val count: Int)
+
+    @Query("SELECT houseId, COUNT(*) as count FROM apartments GROUP BY houseId")
+    suspend fun getApartmentsCounts(): List<HouseCount>
 }

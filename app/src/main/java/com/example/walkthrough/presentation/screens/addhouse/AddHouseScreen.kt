@@ -5,32 +5,11 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,51 +27,46 @@ fun AddHouseScreen(
 ) {
     val context = LocalContext.current
     val houseRepository = RepositoryHolder.getHouseRepository()
-    val viewModel = remember {
-        AddHouseViewModel(houseRepository)
-    }
+    val viewModel = remember { AddHouseViewModel(houseRepository) }
 
+    // Состояния формы
     var address by remember { mutableStateOf("") }
     var cityCode by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
     var isLocationLoading by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf<String?>(null) }
+    var useManualInput by remember { mutableStateOf(false) } // false – авто-заполнение
     val scope = rememberCoroutineScope()
 
-    // Лаунчер для запроса разрешений на геолокацию
+    // Лаунчер для запроса разрешений
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            // Разрешение получено — определяем местоположение
+            // Вызов suspend-функции внутри корутины
             scope.launch {
-                isLocationLoading = true
-                locationError = null
-                try {
-                    LocationHelper.init(context)
-                    val location = LocationHelper.getCurrentLocation(context)
-                    if (location != null) {
-                        val addressResult = LocationHelper.getAddressFromLocation(
-                            context,
-                            location.latitude,
-                            location.longitude
-                        )
-                        if (addressResult != null) {
-                            address = addressResult.fullAddress
-                            cityCode = addressResult.cityCode
-                        } else {
-                            locationError = "Не удалось определить адрес"
+                requestLocation(
+                    context = context,
+                    onStart = { isLocationLoading = true },
+                    onSuccess = { addr, code ->
+                        if (!useManualInput) {
+                            address = addr
+                            cityCode = code
                         }
-                    } else {
-                        locationError = "Не удалось получить координаты"
-                    }
-                } catch (e: Exception) {
-                    locationError = "Ошибка геолокации: ${e.message}"
-                }
-                isLocationLoading = false
+                        locationError = null
+                    },
+                    onError = { error ->
+                        locationError = error
+                    },
+                    onFinish = { isLocationLoading = false }
+                )
             }
         } else {
-            Toast.makeText(context, "Геолокация запрещена, адрес нужно ввести вручную", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                context,
+                "Геолокация запрещена, адрес нужно ввести вручную",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -103,33 +77,21 @@ fun AddHouseScreen(
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            // Разрешение уже есть — определяем местоположение
-            isLocationLoading = true
-            locationError = null
-            try {
-                LocationHelper.init(context)
-                val location = LocationHelper.getCurrentLocation(context)
-                if (location != null) {
-                    val addressResult = LocationHelper.getAddressFromLocation(
-                        context,
-                        location.latitude,
-                        location.longitude
-                    )
-                    if (addressResult != null) {
-                        address = addressResult.fullAddress
-                        cityCode = addressResult.cityCode
-                    } else {
-                        locationError = "Не удалось определить адрес"
+            // Разрешение уже есть – определяем местоположение
+            requestLocation(
+                context = context,
+                onStart = { isLocationLoading = true },
+                onSuccess = { addr, code ->
+                    if (!useManualInput) {
+                        address = addr
+                        cityCode = code
                     }
-                } else {
-                    locationError = "Не удалось получить координаты"
-                }
-            } catch (e: Exception) {
-                locationError = "Ошибка геолокации: ${e.message}"
-            }
-            isLocationLoading = false
+                    locationError = null
+                },
+                onError = { error -> locationError = error },
+                onFinish = { isLocationLoading = false }
+            )
         } else {
-            // Запрашиваем разрешение
             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
@@ -153,6 +115,7 @@ fun AddHouseScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Индикация загрузки геолокации
             if (isLocationLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(40.dp))
                 Spacer(modifier = Modifier.height(8.dp))
@@ -160,37 +123,90 @@ fun AddHouseScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
+            // Ошибка геолокации
             if (locationError != null) {
                 Text(
                     text = locationError!!,
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            // Toggle: ручной ввод
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Ручной ввод адреса")
+                Switch(
+                    checked = useManualInput,
+                    onCheckedChange = { useManualInput = it }
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Кнопка повторного запроса геолокации (доступна, если ручной ввод выключен)
+            Button(
+                onClick = {
+                    // Вызов suspend-функции внутри корутины
+                    scope.launch {
+                        if (ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            requestLocation(
+                                context = context,
+                                onStart = { isLocationLoading = true },
+                                onSuccess = { addr, code ->
+                                    if (!useManualInput) {
+                                        address = addr
+                                        cityCode = code
+                                    }
+                                    locationError = null
+                                },
+                                onError = { error -> locationError = error },
+                                onFinish = { isLocationLoading = false }
+                            )
+                        } else {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLocationLoading && !isSaving && !useManualInput
+            ) {
+                Text("📍 Определить адрес")
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Поле адреса
             OutlinedTextField(
                 value = address,
-                onValueChange = { address = it },
+                onValueChange = { if (useManualInput) address = it },
                 label = { Text("Адрес дома") },
                 placeholder = { Text("ул. Ленина, д. 1") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving && !isLocationLoading
+                enabled = useManualInput && !isSaving && !isLocationLoading
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Поле кода города
             OutlinedTextField(
                 value = cityCode,
-                onValueChange = { cityCode = it },
+                onValueChange = { if (useManualInput) cityCode = it },
                 label = { Text("Код города (для телефонов)") },
                 placeholder = { Text("812, 495, 343...") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving && !isLocationLoading,
+                enabled = useManualInput && !isSaving && !isLocationLoading,
                 singleLine = true
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Кнопка сохранения
             Button(
                 onClick = {
                     if (address.isNotBlank()) {
@@ -198,8 +214,12 @@ fun AddHouseScreen(
                             isSaving = true
                             val houseId = viewModel.addHouse(address, cityCode)
                             isSaving = false
-                            navController.navigate("walkthrough/$houseId") {
-                                popUpTo("homes") { inclusive = false }
+                            if (houseId != null) {
+                                navController.navigate("walkthrough/$houseId") {
+                                    popUpTo("homes") { inclusive = false }
+                                }
+                            } else {
+                                Toast.makeText(context, "Ошибка сохранения дома", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -214,5 +234,38 @@ fun AddHouseScreen(
                 Text("Сохранить и начать обход")
             }
         }
+    }
+}
+
+// Вспомогательная suspend-функция для запроса геолокации
+private suspend fun requestLocation(
+    context: android.content.Context,
+    onStart: () -> Unit,
+    onSuccess: (address: String, cityCode: String) -> Unit,
+    onError: (String) -> Unit,
+    onFinish: () -> Unit
+) {
+    try {
+        onStart()
+        LocationHelper.init(context)
+        val location = LocationHelper.getCurrentLocation(context)
+        if (location != null) {
+            val addressResult = LocationHelper.getAddressFromLocation(
+                context,
+                location.latitude,
+                location.longitude
+            )
+            if (addressResult != null) {
+                onSuccess(addressResult.fullAddress, addressResult.cityCode)
+            } else {
+                onError("Не удалось определить адрес")
+            }
+        } else {
+            onError("Не удалось получить координаты")
+        }
+    } catch (e: Exception) {
+        onError("Ошибка геолокации: ${e.message}")
+    } finally {
+        onFinish()
     }
 }

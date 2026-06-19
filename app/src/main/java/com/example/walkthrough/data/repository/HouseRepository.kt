@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class HouseRepository(
-    private val houseDao: HouseDao
+    private val houseDao: HouseDao,
+    private val draftRepository: DraftRepository
 ) {
     fun getAllHouses(): Flow<List<House>> {
         return houseDao.getAllHouses().map { entities ->
@@ -33,6 +34,7 @@ class HouseRepository(
     }
 
     suspend fun deleteHouse(house: House) {
+        draftRepository.deleteDraftsByHouseId(house.id)  // потребуется внедрить draftRepository
         houseDao.deleteHouse(house.toEntity())
     }
 

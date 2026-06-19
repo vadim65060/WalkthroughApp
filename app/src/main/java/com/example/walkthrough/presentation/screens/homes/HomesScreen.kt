@@ -1,3 +1,4 @@
+// walkthrough/presentation/screens/homes/HomesScreen.kt
 package com.example.walkthrough.presentation.screens.homes
 
 import androidx.compose.foundation.layout.*
@@ -10,31 +11,53 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.walkthrough.di.RepositoryHolder
 import com.example.walkthrough.domain.models.House
 import com.example.walkthrough.domain.utils.DateFormatter
 import com.example.walkthrough.presentation.components.HouseCard
 import com.example.walkthrough.presentation.components.LoadingIndicator
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomesScreen(
     navController: NavController
 ) {
+    val context = LocalContext.current
     val houseRepository = RepositoryHolder.getHouseRepository()
     val apartmentRepository = RepositoryHolder.getApartmentRepository()
+
     val viewModel = remember {
         HomesViewModel(houseRepository, apartmentRepository)
     }
 
-    val houses by viewModel.houses.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val houses by viewModel.houses.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val apartmentsCounts by viewModel.apartmentsCounts.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
 
     // Состояние для диалога подтверждения удаления
     var showDeleteDialog by remember { mutableStateOf(false) }
     var houseToDelete by remember { mutableStateOf<House?>(null) }
+
+    // Snackbar для ошибок
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Показываем ошибку через Snackbar
+    LaunchedEffect(error) {
+        if (error != null) {
+            scope.launch {
+                snackbarHostState.showSnackbar(error!!)
+            }
+            // Очищаем ошибку после показа
+            // viewModel.clearError() // лучше добавить метод в ViewModel
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -56,54 +79,56 @@ fun HomesScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Добавить дом")
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (isLoading) {
-                LoadingIndicator()
-            } else if (houses.isEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "Нет добавленных домов",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = "Нажмите на кнопку +, чтобы добавить",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            when {
+                isLoading -> {
+                    LoadingIndicator()
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(houses) { house ->
-                        var apartmentsCount by remember { mutableIntStateOf(0) }
-                        LaunchedEffect(house.id) {
-                            apartmentsCount = viewModel.getApartmentsCount(house.id)
-                        }
-                        HouseCard(
-                            address = house.address,
-                            lastUpdated = DateFormatter.formatDate(house.lastUpdated),
-                            apartmentsCount = apartmentsCount,
-                            onClick = {
-                                navController.navigate("walkthrough/${house.id}")
-                            },
-                            onDelete = {
-                                houseToDelete = house
-                                showDeleteDialog = true
-                            }
+                houses.isEmpty() -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Нет добавленных домов",
+                            style = MaterialTheme.typography.bodyLarge
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Нажмите на кнопку +, чтобы добавить",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(houses) { house ->
+                            HouseCard(
+                                address = house.address,
+                                lastUpdated = DateFormatter.formatDate(house.lastUpdated),
+                                apartmentsCount = apartmentsCounts[house.id] ?: 0,
+                                onClick = {
+                                    navController.navigate("walkthrough/${house.id}")
+                                },
+                                onDelete = {
+                                    houseToDelete = house
+                                    showDeleteDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -118,7 +143,12 @@ fun HomesScreen(
                 houseToDelete = null
             },
             title = { Text("Удаление дома") },
-            text = { Text("Вы уверены, что хотите удалить дом \"${houseToDelete!!.address}\"?\nВсе данные о квартирах этого дома будут также удалены.") },
+            text = {
+                Text(
+                    "Вы уверены, что хотите удалить дом \"${houseToDelete!!.address}\"?\n" +
+                            "Все данные о квартирах этого дома будут также удалены."
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {

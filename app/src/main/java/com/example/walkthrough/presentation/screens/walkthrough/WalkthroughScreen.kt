@@ -33,6 +33,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,10 +49,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.walkthrough.di.RepositoryHolder
-import com.example.walkthrough.domain.utils.PhoneValidator
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
@@ -62,79 +65,61 @@ fun WalkthroughScreen(
 ) {
     val houseRepository = RepositoryHolder.getHouseRepository()
     val apartmentRepository = RepositoryHolder.getApartmentRepository()
+    val draftRepository = RepositoryHolder.getDraftRepository()
 
     val viewModel = remember(houseId) {
-        WalkthroughViewModel(apartmentRepository, houseRepository, houseId)
+        WalkthroughViewModel(apartmentRepository, houseRepository, draftRepository, houseId)
     }
 
     val currentApartment by viewModel.currentApartmentNumber.collectAsStateWithLifecycle()
     val stepDirection by viewModel.stepDirection.collectAsStateWithLifecycle()
-    val savedSuccess by viewModel.savedSuccess.collectAsStateWithLifecycle()
 
-    // Состояния для полей формы
-    var fullName by remember { mutableStateOf("") }
-    var appeals by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var attitude by remember { mutableStateOf("") }
-    var comment by remember { mutableStateOf("") }
-    var phoneError by remember { mutableStateOf(false) }
+    // Состояния полей из ViewModel
+    val fullName by viewModel.currentFullName.collectAsStateWithLifecycle()
+    val appeals by viewModel.currentAppeals.collectAsStateWithLifecycle()
+    val phone by viewModel.currentPhone.collectAsStateWithLifecycle()
+    val attitude by viewModel.currentAttitude.collectAsStateWithLifecycle()
+    val comment by viewModel.currentComment.collectAsStateWithLifecycle()
+    val phoneError by viewModel.phoneError.collectAsStateWithLifecycle()
 
-    // Код города для валидации телефона
-    var areaCode by remember { mutableStateOf<String?>(null) }
-
-    // Загружаем дом для получения кода города
-    LaunchedEffect(houseId) {
-        val house = houseRepository.getHouseById(houseId)
-        areaCode = house?.cityCode
-    }
-
-    // Состояние для выпадающего списка отношения
-    var expanded by remember { mutableStateOf(false) }
-    val attitudeOptions = listOf("позитивно", "нейтрально", "негативно")
-
-    val scope = rememberCoroutineScope()
-    var isLoading by remember { mutableStateOf(false) }
-
-    // Поле для ручного ввода номера квартиры
+    // Состояние для ввода номера квартиры
     var apartmentNumberInput by remember { mutableStateOf(currentApartment.toString()) }
 
-    // Фокус и навигация по полям
+    // Фокус
     val focusManager = LocalFocusManager.current
     val focusRequesterFullName = remember { FocusRequester() }
     val focusRequesterAppeals = remember { FocusRequester() }
     val focusRequesterPhone = remember { FocusRequester() }
     val focusRequesterComment = remember { FocusRequester() }
 
-    // Загружаем данные при изменении номера квартиры
+    val scope = rememberCoroutineScope()
+    var isLoading by remember { mutableStateOf(false) }
+
+    // Выпадающий список отношения
+    var expanded by remember { mutableStateOf(false) }
+    val attitudeOptions = listOf("позитивно", "нейтрально", "негативно")
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // При возврате на экран перезагружаем данные для текущей квартиры
+                viewModel.loadApartment(houseId, currentApartment)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // При изменении номера квартиры загружаем данные
     LaunchedEffect(currentApartment) {
         isLoading = true
-        val existing = viewModel.loadApartment(houseId, currentApartment)
-        if (existing != null && !existing.isNotHome) {
-            fullName = existing.fullName
-            appeals = existing.appeals
-            phone = existing.phone
-            attitude = existing.attitude
-            comment = existing.comment
-        } else {
-            fullName = ""
-            appeals = ""
-            phone = ""
-            attitude = ""
-            comment = ""
-        }
+        viewModel.loadApartment(houseId, currentApartment)
         isLoading = false
         viewModel.resetSavedSuccess()
         apartmentNumberInput = currentApartment.toString()
-    }
-
-    LaunchedEffect(savedSuccess) {
-        if (savedSuccess && !isLoading) {
-            fullName = ""
-            appeals = ""
-            phone = ""
-            attitude = ""
-            comment = ""
-        }
     }
 
     Scaffold(
@@ -221,7 +206,7 @@ fun WalkthroughScreen(
                     // ФИО
                     OutlinedTextField(
                         value = fullName,
-                        onValueChange = { fullName = it },
+                        onValueChange = { viewModel.updateField("fullName", it) },
                         label = { Text("ФИО") },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -237,7 +222,7 @@ fun WalkthroughScreen(
                     // Обращения
                     OutlinedTextField(
                         value = appeals,
-                        onValueChange = { appeals = it },
+                        onValueChange = { viewModel.updateField("appeals", it) },
                         label = { Text("Обращения") },
                         placeholder = { Text("Здравствуйте, добрый день и т.д.") },
                         modifier = Modifier
@@ -254,11 +239,7 @@ fun WalkthroughScreen(
                     // Телефон
                     OutlinedTextField(
                         value = phone,
-                        onValueChange = {
-                            phone = it
-                            // ✅ Используем код города при валидации
-                            phoneError = phone.isNotBlank() && !PhoneValidator.isValid(phone, areaCode)
-                        },
+                        onValueChange = { viewModel.updateField("phone", it) },
                         label = { Text("Телефон") },
                         placeholder = { Text("+7 123 456-78-90") },
                         modifier = Modifier
@@ -303,13 +284,17 @@ fun WalkthroughScreen(
                         ) {
                             attitudeOptions.forEach { option ->
                                 DropdownMenuItem(
-                                    text = { Text(when(option) {
-                                        "позитивно" -> "😊 Позитивно"
-                                        "нейтрально" -> "😐 Нейтрально"
-                                        else -> "😞 Негативно"
-                                    }) },
+                                    text = {
+                                        Text(
+                                            when (option) {
+                                                "позитивно" -> "😊 Позитивно"
+                                                "нейтрально" -> "😐 Нейтрально"
+                                                else -> "😞 Негативно"
+                                            }
+                                        )
+                                    },
                                     onClick = {
-                                        attitude = option
+                                        viewModel.updateField("attitude", option)
                                         expanded = false
                                     }
                                 )
@@ -320,7 +305,7 @@ fun WalkthroughScreen(
                     // Комментарий
                     OutlinedTextField(
                         value = comment,
-                        onValueChange = { comment = it },
+                        onValueChange = { viewModel.updateField("comment", it) },
                         label = { Text("Комментарий") },
                         modifier = Modifier
                             .fillMaxWidth()

@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
+import androidx.annotation.Keep
 import androidx.documentfile.provider.DocumentFile
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -14,7 +15,10 @@ object ExportUtils {
 
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
-    fun exportToCsv(house: com.example.walkthrough.domain.models.House, apartments: List<com.example.walkthrough.domain.models.Apartment>): String {
+    fun exportToCsv(
+        house: com.example.walkthrough.domain.models.House,
+        apartments: List<com.example.walkthrough.domain.models.Apartment>
+    ): String {
         val sb = StringBuilder()
         sb.append("Квартира;ФИО;Обращения;Телефон;Отношение;Комментарий;Дата обхода;Нет дома\n")
         apartments.sortedBy { it.apartmentNumber }.forEach { apt ->
@@ -35,7 +39,12 @@ object ExportUtils {
     }
 
     // Сохранение CSV в выбранную папку через SAF (требуется Context)
-    suspend fun saveCsvToUri(context: Context, folderUri: Uri, fileName: String, content: String): Boolean {
+    suspend fun saveCsvToUri(
+        context: Context,
+        folderUri: Uri,
+        fileName: String,
+        content: String
+    ): Boolean {
         return try {
             val folder = DocumentFile.fromTreeUri(context, folderUri) ?: return false
             val file = folder.createFile("text/csv", "$fileName.csv") ?: return false
@@ -50,7 +59,12 @@ object ExportUtils {
     }
 
     // Сохранение JSON в выбранную папку через SAF
-    suspend fun saveJsonToUri(context: Context, folderUri: Uri, fileName: String, content: String): Boolean {
+    suspend fun saveJsonToUri(
+        context: Context,
+        folderUri: Uri,
+        fileName: String,
+        content: String
+    ): Boolean {
         return try {
             val folder = DocumentFile.fromTreeUri(context, folderUri) ?: return false
             val file = folder.createFile("application/json", "$fileName.json") ?: return false
@@ -102,12 +116,14 @@ object ExportUtils {
     }
 }
 
+@Keep
 data class HouseDataExport(
     val address: String,
     val lastUpdated: String,
     val apartments: List<ApartmentDataExport>
 )
 
+@Keep
 data class ApartmentDataExport(
     val number: Int,
     val fullName: String,

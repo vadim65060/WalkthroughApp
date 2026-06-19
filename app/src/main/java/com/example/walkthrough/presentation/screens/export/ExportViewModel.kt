@@ -27,6 +27,12 @@ class ExportViewModel(
     private val _selectedHouses = MutableStateFlow<Set<Long>>(emptySet())
     val selectedHouses: StateFlow<Set<Long>> = _selectedHouses.asStateFlow()
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private val _exportResult = MutableStateFlow<String?>(null)
     val exportResult: StateFlow<String?> = _exportResult.asStateFlow()
 
@@ -36,8 +42,16 @@ class ExportViewModel(
 
     private fun loadHouses() {
         viewModelScope.launch {
-            houseRepository.getAllHouses().collect { houseList ->
-                _houses.value = houseList
+            _isLoading.value = true
+            _error.value = null
+            try {
+                houseRepository.getAllHouses().collect { houseList ->
+                    _houses.value = houseList
+                    _isLoading.value = false
+                }
+            } catch (e: Exception) {
+                _error.value = "Ошибка загрузки домов: ${e.message}"
+                _isLoading.value = false
             }
         }
     }
@@ -61,37 +75,67 @@ class ExportViewModel(
     }
 
     suspend fun generateCsv(): String? {
-        val selected = getSelectedHousesData() ?: return null
-        val sb = StringBuilder()
-        selected.forEach { (house, apartments) ->
-            sb.append("# ${house.address}\n")
-            sb.append(ExportUtils.exportToCsv(house, apartments))
-            sb.append("\n")
+        if (_selectedHouses.value.isEmpty()) return null
+        _isLoading.value = true
+        _error.value = null
+        return try {
+            val selected = getSelectedHousesData()
+            if (selected == null) {
+                _error.value = "Нет данных для экспорта"
+                null
+            } else {
+                val sb = StringBuilder()
+                selected.forEach { (house, apartments) ->
+                    sb.append("# ${house.address}\n")
+                    sb.append(ExportUtils.exportToCsv(house, apartments))
+                    sb.append("\n")
+                }
+                sb.toString()
+            }
+        } catch (e: Exception) {
+            _error.value = "Ошибка генерации CSV: ${e.message}"
+            null
+        } finally {
+            _isLoading.value = false
         }
-        return sb.toString()
     }
 
     suspend fun generateJson(): String {
-        val selected = getSelectedHousesData() ?: return "[]"
-        val housesData = selected.map { (house, apartments) ->
-            HouseDataExport(
-                address = house.address,
-                lastUpdated = DateFormatter.formatDate(house.lastUpdated),
-                apartments = apartments.map { apt ->
-                    ApartmentDataExport(
-                        number = apt.apartmentNumber,
-                        fullName = apt.fullName,
-                        appeals = apt.appeals,
-                        phone = apt.phone,
-                        attitude = apt.attitude,
-                        comment = apt.comment,
-                        lastVisitDate = DateFormatter.formatDate(apt.lastVisitDate),
-                        isNotHome = apt.isNotHome
+        if (_selectedHouses.value.isEmpty()) return "[]"
+        _isLoading.value = true
+        _error.value = null
+        return try {
+            val selected = getSelectedHousesData()
+            if (selected == null) {
+                _error.value = "Нет данных для экспорта"
+                "[]"
+            } else {
+                val housesData = selected.map { (house, apartments) ->
+                    HouseDataExport(
+                        address = house.address,
+                        lastUpdated = DateFormatter.formatDate(house.lastUpdated),
+                        apartments = apartments.map { apt ->
+                            ApartmentDataExport(
+                                number = apt.apartmentNumber,
+                                fullName = apt.fullName,
+                                appeals = apt.appeals,
+                                phone = apt.phone,
+                                attitude = apt.attitude,
+                                comment = apt.comment,
+                                lastVisitDate = DateFormatter.formatDate(apt.lastVisitDate),
+                                isNotHome = apt.isNotHome
+                            )
+                        }
                     )
                 }
-            )
+                ExportUtils.exportToJson(housesData)
+            }
+        } catch (e: Exception) {
+            _error.value = "Ошибка генерации JSON: ${e.message}"
+            "[]"
+        } finally {
+            _isLoading.value = false
         }
-        return ExportUtils.exportToJson(housesData)
     }
 
     suspend fun getSelectedHousesData(): List<Pair<House, List<Apartment>>>? {
@@ -99,10 +143,19 @@ class ExportViewModel(
 
         val result = mutableListOf<Pair<House, List<Apartment>>>()
         for (houseId in _selectedHouses.value) {
-            val house = houseRepository.getHouseById(houseId) ?: continue
-            val apartments = apartmentRepository.getApartmentsByHouse(houseId).first()
-            result.add(house to apartments)
+            try {
+                val house = houseRepository.getHouseById(houseId) ?: continue
+                val apartments = apartmentRepository.getApartmentsByHouse(houseId).first()
+                result.add(house to apartments)
+            } catch (e: Exception) {
+                _error.value = "Ошибка загрузки данных для дома $houseId: ${e.message}"
+                return null
+            }
         }
         return result
+    }
+
+    fun clearError() {
+        _error.value = null
     }
 }

@@ -3,16 +3,19 @@ package com.example.walkthrough.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.example.walkthrough.data.local.dao.ApartmentDao
+import com.example.walkthrough.data.local.dao.DraftDao
 import com.example.walkthrough.data.local.dao.HouseDao
 import com.example.walkthrough.data.local.entities.ApartmentEntity
+import com.example.walkthrough.data.local.entities.DraftEntity
 import com.example.walkthrough.data.local.entities.HouseEntity
 
 @Database(
-    entities = [HouseEntity::class, ApartmentEntity::class],
-    version = 2,
+    entities = [HouseEntity::class, ApartmentEntity::class, DraftEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun houseDao(): HouseDao
     abstract fun apartmentDao(): ApartmentDao
+    abstract fun draftDao(): DraftDao
 }

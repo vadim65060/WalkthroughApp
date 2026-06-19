@@ -19,6 +19,10 @@ class ApartmentRepository constructor(
         return apartmentDao.getApartmentByNumber(houseId, apartmentNumber)?.toDomainModel()
     }
 
+    suspend fun getApartmentsCounts(): Map<Long, Int> {
+        return apartmentDao.getApartmentsCounts().associate { it.houseId to it.count }
+    }
+
     suspend fun saveApartment(apartment: Apartment) {
         val existing = apartmentDao.getApartmentByNumber(apartment.houseId, apartment.apartmentNumber)
         if (existing != null) {

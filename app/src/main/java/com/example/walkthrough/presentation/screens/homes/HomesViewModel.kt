@@ -18,8 +18,15 @@ class HomesViewModel(
     private val _houses = MutableStateFlow<List<House>>(emptyList())
     val houses: StateFlow<List<House>> = _houses.asStateFlow()
 
+    // Новый StateFlow для количества квартир по домам
+    private val _apartmentsCounts = MutableStateFlow<Map<Long, Int>>(emptyMap())
+    val apartmentsCounts: StateFlow<Map<Long, Int>> = _apartmentsCounts.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
 
     init {
         loadHouses()
@@ -28,8 +35,17 @@ class HomesViewModel(
     private fun loadHouses() {
         viewModelScope.launch {
             _isLoading.value = true
-            houseRepository.getAllHouses().collect { houseList ->
-                _houses.value = houseList
+            _error.value = null
+            try {
+                houseRepository.getAllHouses().collect { houseList ->
+                    _houses.value = houseList
+                    // Получаем количество квартир для всех домов одним запросом
+                    val counts = apartmentRepository.getApartmentsCounts()
+                    _apartmentsCounts.value = counts
+                    _isLoading.value = false
+                }
+            } catch (e: Exception) {
+                _error.value = "Ошибка загрузки данных: ${e.message}"
                 _isLoading.value = false
             }
         }
@@ -37,11 +53,11 @@ class HomesViewModel(
 
     fun deleteHouse(house: House) {
         viewModelScope.launch {
-            houseRepository.deleteHouse(house)
+            try {
+                houseRepository.deleteHouse(house)
+            } catch (e: Exception) {
+                _error.value = "Ошибка удаления дома: ${e.message}"
+            }
         }
-    }
-
-    suspend fun getApartmentsCount(houseId: Long): Int {
-        return apartmentRepository.getApartmentsCount(houseId)
     }
 }
