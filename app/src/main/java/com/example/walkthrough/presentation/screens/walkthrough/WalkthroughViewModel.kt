@@ -1,4 +1,3 @@
-// walkthrough/presentation/screens/walkthrough/WalkthroughViewModel.kt
 package com.example.walkthrough.presentation.screens.walkthrough
 
 import androidx.lifecycle.ViewModel
@@ -19,13 +18,14 @@ class WalkthroughViewModel(
     private val apartmentRepository: ApartmentRepository,
     private val houseRepository: HouseRepository,
     private val draftRepository: DraftRepository,
-    houseId: Long
+    houseId: Long,
+    initialStepDirection: Int = 1
 ) : ViewModel() {
 
     private val _currentApartmentNumber = MutableStateFlow(1)
     val currentApartmentNumber: StateFlow<Int> = _currentApartmentNumber.asStateFlow()
 
-    private val _stepDirection = MutableStateFlow(1)
+    private val _stepDirection = MutableStateFlow(initialStepDirection)
     val stepDirection: StateFlow<Int> = _stepDirection.asStateFlow()
 
     // Поля формы
@@ -239,15 +239,21 @@ class WalkthroughViewModel(
         _savedSuccess.value = false
     }
 
+    fun setStepDirection(direction: Int) {
+        if (direction == 1 || direction == -1) {
+            _stepDirection.value = direction
+            val newNumber = if (direction == 1) {
+                getMinUnsaved()
+            } else {
+                getMaxUnsaved()
+            }
+            setCurrentApartmentNumber(newNumber)
+        }
+    }
+
     fun toggleStepDirection() {
         val newDirection = if (_stepDirection.value == 1) -1 else 1
-        _stepDirection.value = newDirection
-        val newNumber = if (newDirection == 1) {
-            getMinUnsaved()
-        } else {
-            getMaxUnsaved()
-        }
-        setCurrentApartmentNumber(newNumber)
+        setStepDirection(newDirection)
     }
 
     fun setCurrentApartmentNumber(number: Int) {

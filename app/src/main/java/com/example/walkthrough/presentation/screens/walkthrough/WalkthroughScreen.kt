@@ -36,9 +36,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -67,12 +69,20 @@ fun WalkthroughScreen(
     val apartmentRepository = RepositoryHolder.getApartmentRepository()
     val draftRepository = RepositoryHolder.getDraftRepository()
 
-    val viewModel = remember(houseId) {
-        WalkthroughViewModel(apartmentRepository, houseRepository, draftRepository, houseId)
+    // Шаг сохраняется при повороте экрана
+    var stepDirection by rememberSaveable { mutableIntStateOf(1) }
+
+    val viewModel = remember(houseId, stepDirection) {
+        WalkthroughViewModel(
+            apartmentRepository,
+            houseRepository,
+            draftRepository,
+            houseId,
+            initialStepDirection = stepDirection
+        )
     }
 
     val currentApartment by viewModel.currentApartmentNumber.collectAsStateWithLifecycle()
-    val stepDirection by viewModel.stepDirection.collectAsStateWithLifecycle()
 
     // Состояния полей из ViewModel
     val fullName by viewModel.currentFullName.collectAsStateWithLifecycle()
@@ -183,7 +193,11 @@ fun WalkthroughScreen(
                         Text("Шаг: ${if (stepDirection == 1) "+1" else "-1"}")
                         Switch(
                             checked = stepDirection == 1,
-                            onCheckedChange = { viewModel.toggleStepDirection() },
+                            onCheckedChange = { isPlus ->
+                                val newDirection = if (isPlus) 1 else -1
+                                stepDirection = newDirection
+                                viewModel.setStepDirection(newDirection)
+                            },
                             enabled = !isLoading
                         )
                     }
@@ -224,7 +238,6 @@ fun WalkthroughScreen(
                         value = appeals,
                         onValueChange = { viewModel.updateField("appeals", it) },
                         label = { Text("Обращения") },
-                        placeholder = { Text("Здравствуйте, добрый день и т.д.") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequesterAppeals),
