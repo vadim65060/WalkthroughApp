@@ -74,6 +74,7 @@ fun ApartmentCard(
     apartmentNumber: Int,
     fullName: String,
     phone: String,
+    attitude: String,
     lastVisitDate: String,
     isNotHome: Boolean,
     onClick: () -> Unit,
@@ -114,6 +115,19 @@ fun ApartmentCard(
                 if (phone.isNotBlank()) {
                     Text(
                         text = phone,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                // Отображение отношения со смайликом
+                if (attitude.isNotBlank()) {
+                    Text(
+                        text = when (attitude) {
+                            "позитивно" -> "😊 Позитивно"
+                            "нейтрально" -> "😐 Нейтрально"
+                            "негативно" -> "😞 Негативно"
+                            else -> attitude
+                        },
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

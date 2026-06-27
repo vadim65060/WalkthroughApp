@@ -143,6 +143,7 @@ fun ApartmentsListScreen(
                             apartmentNumber = apartment.apartmentNumber,
                             fullName = apartment.fullName,
                             phone = apartment.phone,
+                            attitude = apartment.attitude,
                             lastVisitDate = DateFormatter.formatDate(apartment.lastVisitDate),
                             isNotHome = apartment.isNotHome,
                             onClick = {
